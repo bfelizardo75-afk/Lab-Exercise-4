@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Role-Based Asset Transaction & Approval Management</title>
+  <link rel="stylesheet" href="styles.css">
+  <!-- Supabase JS Client library -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+
+  <!-- Supabase login gate -->
+  <div id="login-screen" class="login-screen">
+    <div class="login-card">
+      <h1>Lab Asset Manager</h1>
+      <p>Sign in with your Supabase account.</p>
+      <form id="supabase-config-form" onsubmit="saveSupabaseConfig(event)" hidden>
+        <div class="form-group">
+          <label for="supabase-url">Supabase Project URL</label>
+          <input id="supabase-url" type="url" placeholder="https://your-project.supabase.co" required>
+        </div>
+        <div class="form-group">
+          <label for="supabase-anon-key">Supabase Anon Key</label>
+          <input id="supabase-anon-key" type="password" autocomplete="off" required>
+        </div>
+        <button class="btn btn-primary" type="submit">Save Supabase Settings</button>
+      </form>
+      <form id="login-form" onsubmit="handleLogin(event)">
+        <div class="form-group">
+          <label for="login-email">Email</label>
+          <input id="login-email" type="email" autocomplete="email" required>
+        </div>
+        <div class="form-group">
+          <label for="login-password">Password</label>
+          <input id="login-password" type="password" autocomplete="current-password" required>
+        </div>
+        <button id="login-button" class="btn btn-primary" type="submit">Sign in</button>
+        <p id="login-message" class="login-message" role="alert"></p>
+      </form>
+    </div>
+  </div>
+
+  <!-- Sidebar Navigation -->
+  <aside class="sidebar">
+    <div class="brand">
+      <span>⚙️ Lab Asset Manager</span>
+    </div>
+
+    <!-- Authenticated user information -->
+    <div class="role-switcher-card">
+      <label>Logged-in User / Role</label>
+      <strong id="sidebar-user-name">Not signed in</strong>
+      <span id="sidebar-user-role">Sign in required</span>
+    </div>
+
+    <!-- Adaptive Navigation Menu -->
+    <ul class="nav-menu">
+      <li class="nav-item active" id="nav-dashboard">
+        <button onclick="switchView('dashboard')">📊 Dashboard</button>
+      </li>
+      <li class="nav-item" id="nav-equipment">
+        <button onclick="switchView('equipment')">💻 Equipment Catalog</button>
+      </li>
+      <li class="nav-item" id="nav-requests">
+        <button onclick="switchView('requests')">📝 Borrowing Transactions</button>
+      </li>
+      <li class="nav-item" id="nav-approvals">
+        <button onclick="switchView('approvals')">🛡️ Admin Approvals</button>
+      </li>
+      <li class="nav-item" id="nav-audit">
+        <button onclick="switchView('audit')">🔍 Audit Trail Logs</button>
+      </li>
+      <li class="nav-item" id="nav-testing">
+        <button onclick="switchView('testing')">🧪 Test Suite (TC-01..10)</button>
+      </li>
+      <li class="nav-item" style="margin-top: auto;">
+        <button onclick="logoutFromSupabase()" style="color: #ef4444;">🔒 Logout / Access Guard</button>
+      </li>
+    </ul>
+  </aside>
+
+  <!-- Main Content Area -->
+  <main class="main-content">
+    
+    <!-- Top Bar Header -->
+    <header class="top-bar">
+      <div>
+        <h1 id="page-title">System Dashboard</h1>
+        <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 0.2rem;">
+          SAD Lab 4-A: Role-Based Asset Transaction and Approval Management System
+        </p>
+      </div>
+      <div class="user-badge">
+        <span id="current-user-name">Ana Reyes</span>
+        <span id="current-user-role-pill" class="role-pill role-Requester--Viewer">Requester / Viewer</span>
+      </div>
+    </header>
+
+    <!-- SECTION: DASHBOARD -->
+    <section id="view-dashboard" class="view-section active">
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="title">Total Equipment</div>
+          <div class="value" id="stat-total-eq">4</div>
+        </div>
+        <div class="stat-card">
+          <div class="title">Available for Request</div>
+          <div class="value" id="stat-avail-eq" style="color: #10b981;">2</div>
+        </div>
+        <div class="stat-card">
+          <div class="title">Pending Approvals</div>
+          <div class="value" id="stat-pending-tx" style="color: #f59e0b;">1</div>
+        </div>
+        <div class="stat-card">
+          <div class="title">Active Borrowed</div>
+          <div class="value" id="stat-borrowed-eq" style="color: #8b5cf6;">1</div>
+        </div>
+      </div>
+
+      <div class="table-card">
+        <div class="table-header">
+          <h2>Recent Activity Summary</h2>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>User</th>
+              <th>Equipment</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="dashboard-recent-table">
+            <!-- Populated via app.js -->
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- SECTION: EQUIPMENT CATALOG -->
+    <section id="view-equipment" class="view-section">
+      <div class="table-card">
+        <div class="table-header">
+          <h2>Equipment Inventory & Status</h2>
+          <button id="btn-add-equipment" class="btn btn-primary" onclick="openAddEquipmentModal()" style="display:none;">
+            + Add Equipment (Admin Only)
+          </button>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Asset Code</th>
+              <th>Name</th>
+              <th>Category</th>
+              <th>Status</th>
+              <th>Condition</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="equipment-table-body">
+            <!-- Populated via app.js -->
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- SECTION: BORROWING TRANSACTIONS -->
+    <section id="view-requests" class="view-section">
+      <div class="table-card">
+        <div class="table-header">
+          <h2>Borrowing Transactions & Lifecycle</h2>
+          <button class="btn btn-primary" onclick="openBorrowModal()">+ Request Borrowing</button>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Transaction ID</th>
+              <th>Requester</th>
+              <th>Equipment</th>
+              <th>Status</th>
+              <th>Approved By</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="transactions-table-body">
+            <!-- Populated via app.js -->
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- SECTION: ADMIN APPROVALS DASHBOARD -->
+    <section id="view-approvals" class="view-section">
+      <div class="table-card">
+        <div class="table-header">
+          <h2>Pending Approval Queue (Administrator Exclusive)</h2>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Request ID</th>
+              <th>Requester Name</th>
+              <th>Equipment Code & Name</th>
+              <th>Request Notes</th>
+              <th>Approval Actions</th>
+            </tr>
+          </thead>
+          <tbody id="approvals-table-body">
+            <!-- Populated via app.js -->
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- SECTION: AUDIT TRAIL LOGS -->
+    <section id="view-audit" class="view-section">
+      <div class="table-card">
+        <div class="table-header">
+          <h2>System Audit Logs (Traceability Engine)</h2>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Timestamp</th>
+              <th>Actor</th>
+              <th>Action</th>
+              <th>Module</th>
+              <th>Record ID</th>
+              <th>Description</th>
+            </tr>
+          </thead>
+          <tbody id="audit-logs-table-body">
+            <!-- Populated via app.js -->
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- SECTION: FUNCTIONAL TEST SUITE (TC-A4-01 to TC-A4-10) -->
+    <section id="view-testing" class="view-section">
+      <div class="table-card" style="padding: 1.5rem;">
+        <h2>Automated Lab Functional Test Suite (TC-A4-01 to TC-A4-10)</h2>
+        <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 0.5rem;">
+          Click the button below to execute all 10 required test scenarios and verify role access guards, workflow transitions, business rules, and audit logging.
+        </p>
+        <br>
+        <button class="btn btn-success" onclick="runAutomatedTests()">▶️ Execute All 10 Test Cases</button>
+        <button class="btn btn-secondary" onclick="resetSystemData()">🔄 Reset System Test Data</button>
+
+        <div id="test-log-output" class="test-log-box">
+          Ready to execute test suite. Click "Execute All 10 Test Cases" to run...
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- MODAL: REQUEST BORROWING -->
+  <div class="modal-overlay" id="modal-request">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>Submit Borrowing Request</h3>
+        <button class="btn btn-secondary" onclick="closeModal('modal-request')">✕</button>
+      </div>
+      <form id="form-borrow-request" onsubmit="handleRequestSubmit(event)">
+        <div class="form-group">
+          <label for="request-equipment-select">Select Available Equipment</label>
+          <select id="request-equipment-select" required>
+            <!-- Populated dynamically -->
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="request-notes">Purpose / Project Notes</label>
+          <textarea id="request-notes" rows="3" placeholder="e.g. SAD Lab Presentation Project" required></textarea>
+        </div>
+        <div style="display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1.5rem;">
+          <button type="button" class="btn btn-secondary" onclick="closeModal('modal-request')">Cancel</button>
+          <button type="submit" class="btn btn-primary">Submit Request</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toast-container"></div>
+
+  <!-- Application Script -->
+  <script src="app.js"></script>
+</body>
+</html>
